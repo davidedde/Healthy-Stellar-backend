@@ -37,6 +37,7 @@ module.exports = {
         '^ipfs-http-client$': '<rootDir>/test/__mocks__/ipfs-http-client.js',
         '^bull$': '<rootDir>/test/__mocks__/bull.js',
         '^@nestjs-modules/mailer$': '<rootDir>/test/__mocks__/@nestjs-modules/mailer.js',
+        '^@nestjs-modules/ioredis$': '<rootDir>/test/__mocks__/@nestjs-modules/ioredis.js',
       },
       setupFilesAfterEnv: ['<rootDir>/test/setup-unit.ts'],
       globals: {
