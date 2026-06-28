@@ -14,6 +14,8 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  InternalServerErrorException,
+  HttpException,
 } from '@nestjs/common';
 import { I18nContext } from 'nestjs-i18n';
 import { Throttle } from '@nestjs/throttler';
@@ -59,9 +61,11 @@ export class TenantConfigController {
         })),
       };
     } catch (error) {
-      // Generic error message to prevent information disclosure
       this.logger.error(`Error fetching tenant config: ${error.message}`);
-      throw new NotFoundException(I18nContext.current()?.t('errors.CONFIGURATION_NOT_FOUND') || 'Configuration not found');
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(I18nContext.current()?.t('errors.CONFIGURATION_NOT_FOUND') || 'Failed to retrieve configuration');
     }
   }
 
@@ -84,6 +88,10 @@ export class TenantConfigController {
     try {
       const value = await this.tenantConfigService.get(tenantId, key);
 
+      if (value === undefined || value === null) {
+        throw new NotFoundException(I18nContext.current()?.t('errors.CONFIGURATION_NOT_FOUND') || 'Configuration not found');
+      }
+
       return {
         tenantId,
         key,
@@ -91,7 +99,10 @@ export class TenantConfigController {
       };
     } catch (error) {
       this.logger.error(`Error fetching config key: ${error.message}`);
-      throw new NotFoundException(I18nContext.current()?.t('errors.CONFIGURATION_NOT_FOUND') || 'Configuration not found');
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(I18nContext.current()?.t('errors.CONFIGURATION_NOT_FOUND') || 'Failed to retrieve configuration');
     }
   }
 
@@ -192,7 +203,10 @@ export class TenantConfigController {
       };
     } catch (error) {
       this.logger.error(`Error in bulk update: ${error.message}`);
-      throw new BadRequestException(I18nContext.current()?.t('errors.FAILED_TO_UPDATE_CONFIGURATIONS') || 'Failed to update configurations');
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(I18nContext.current()?.t('errors.FAILED_TO_UPDATE_CONFIGURATIONS') || 'Failed to update configurations');
     }
   }
 
@@ -226,7 +240,10 @@ export class TenantConfigController {
       };
     } catch (error) {
       this.logger.error(`Error deleting config: ${error.message}`);
-      throw new NotFoundException(I18nContext.current()?.t('errors.CONFIGURATION_NOT_FOUND') || 'Configuration not found');
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(I18nContext.current()?.t('errors.CONFIGURATION_NOT_FOUND') || 'Failed to delete configuration');
     }
   }
 
@@ -258,7 +275,10 @@ export class TenantConfigController {
       };
     } catch (error) {
       this.logger.error(`Error checking feature: ${error.message}`);
-      throw new NotFoundException(I18nContext.current()?.t('errors.FEATURE_NOT_FOUND') || 'Feature not found');
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(I18nContext.current()?.t('errors.FEATURE_NOT_FOUND') || 'Failed to check feature status');
     }
   }
 

@@ -152,7 +152,10 @@ export class StellarTransactionQueueService implements OnModuleInit {
   dequeue(id: string): boolean {
     const removed = this.queue.delete(id);
     if (removed) {
-      this.retryStore.remove(id).catch(() => {});
+      this.retryStore.remove(id).catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Failed to remove dequeued transaction ${id} from store: ${message}`);
+      });
       this.logger.log(`Transaction dequeued: ${id}`);
     }
     return removed;
@@ -204,7 +207,10 @@ export class StellarTransactionQueueService implements OnModuleInit {
 
       if (shouldRemove) {
         this.queue.delete(id);
-        this.retryStore.remove(id).catch(() => {});
+        this.retryStore.remove(id).catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`Failed to remove transaction ${id} from store during cleanup: ${message}`);
+        });
       }
     }
 

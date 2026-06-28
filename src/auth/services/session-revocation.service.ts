@@ -30,7 +30,10 @@ export class SessionRevocationService implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    await this.publisher.quit().catch(() => {});
+    await this.publisher.quit().catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Redis publisher quit failed during shutdown: ${message}`);
+    });
   }
 
   /** Notify subscribers that a specific session has been revoked. */

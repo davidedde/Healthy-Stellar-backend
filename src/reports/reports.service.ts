@@ -152,8 +152,8 @@ export class ReportsService {
         const result = await this.ipfs.add(buffer);
         ipfsHash = result.path;
       } catch (ipfsErr) {
-        this.logger.error('IPFS upload failed, using fallback hash for testing', ipfsErr);
-        ipfsHash = 'QmFallbackDummyHashForTesting123';
+        this.logger.error(`IPFS upload failed for report job ${jobId}: ${ipfsErr?.message}`, ipfsErr?.stack);
+        throw new Error(`Report storage failed: unable to upload to IPFS — ${ipfsErr?.message}`);
       }
 
       const downloadToken = uuidv4();

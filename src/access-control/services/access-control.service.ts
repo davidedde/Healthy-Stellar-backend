@@ -92,7 +92,12 @@ export class AccessControlService {
       resourceType: 'AccessGrant',
       resourceId: updated.id,
       metadata: { recordIds: updated.recordIds, accessLevel: updated.accessLevel },
-    }).catch(() => {});
+    }).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Failed to write GRANT_CHANGE audit log for grant ${updated.id}: ${message}`,
+      );
+    });
 
     return updated;
     } finally {
@@ -145,7 +150,12 @@ export class AccessControlService {
       resourceType: 'AccessGrant',
       resourceId: finalGrant.id,
       metadata: { reason: finalGrant.revocationReason },
-    }).catch(() => {});
+    }).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Failed to write GRANT_REVOKE audit log for grant ${finalGrant.id}: ${message}`,
+      );
+    });
 
     return finalGrant;
     } finally {

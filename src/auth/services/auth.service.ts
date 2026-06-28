@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   ConflictException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -36,6 +37,8 @@ export interface AuthResponse {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
@@ -264,7 +267,11 @@ export class AuthService {
       action: 'LOGIN',
       ipAddress,
       metadata: { email: user.email, success: true },
-    }).catch(() => {});
+    }).catch((err: unknown) => {
+      // Login audit is security-critical (HIPAA); log the failure so ops can detect gaps
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Failed to write LOGIN audit log for user ${user.id}: ${message}`);
+    });
 
     return {
       user: this.formatUser(user),
