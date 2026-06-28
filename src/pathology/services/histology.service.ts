@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HistologySlide } from '../entities/histology-slide.entity';
 import { CreateHistologySlideDto } from '../dto/create-histology-slide.dto';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
 
 @Injectable()
 export class HistologyService {
@@ -31,16 +32,10 @@ export class HistologyService {
   }
 
   async findOne(id: string): Promise<HistologySlide> {
-    const slide = await this.slideRepository.findOne({
+    return findOneOrFail(this.slideRepository, 'Histology slide', {
       where: { id },
       relations: ['pathologyCase', 'digitalImages'],
     });
-
-    if (!slide) {
-      throw new NotFoundException(`Histology slide with ID ${id} not found`);
-    }
-
-    return slide;
   }
 
   async findByCase(caseId: string): Promise<HistologySlide[]> {

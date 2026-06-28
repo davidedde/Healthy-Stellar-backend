@@ -20,6 +20,10 @@ export * from './decorators/traced.decorator';
 // Utils
 export * from './utils/encryption.util';
 export * from './utils/pagination.util';
+export * from './utils/entity-lookup.util';
+export * from './utils/date-range.util';
+export * from './utils/reference-number.util';
+export * from './utils/status-transition.util';
 
 // DTOs
 export * from './dto/pagination.dto';

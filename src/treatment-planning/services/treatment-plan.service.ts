@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, Between } from 'typeorm';
 import { TreatmentPlan } from '../entities/treatment-plan.entity';
@@ -11,6 +11,7 @@ import {
 import { TreatmentPlanStatus } from '../../common/enums';
 import { Diagnosis } from '../../diagnosis/entities/diagnosis.entity';
 import { DecisionSupportService } from './decision-support.service';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
 
 @Injectable()
 export class TreatmentPlanService {
@@ -39,16 +40,10 @@ export class TreatmentPlanService {
   }
 
   async findById(id: string): Promise<TreatmentPlan> {
-    const plan = await this.treatmentPlanRepository.findOne({
+    return findOneOrFail(this.treatmentPlanRepository, 'Treatment plan', {
       where: { id },
       relations: ['procedures', 'outcomes', 'versions'],
     });
-
-    if (!plan) {
-      throw new NotFoundException(`Treatment plan with ID ${id} not found`);
-    }
-
-    return plan;
   }
 
   async findByPatientId(patientId: string): Promise<TreatmentPlan[]> {

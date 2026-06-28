@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Drug } from '../entities/drug.entity';
 import { CreateDrugDto } from '../dto/create-drug.dto';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
 
 @Injectable()
 export class DrugService {
@@ -33,28 +34,16 @@ export class DrugService {
   }
 
   async findOne(id: string): Promise<Drug> {
-    const drug = await this.drugRepository.findOne({
+    return findOneOrFail(this.drugRepository, 'Drug', {
       where: { id },
       relations: ['inventory'],
     });
-
-    if (!drug) {
-      throw new NotFoundException(`Drug with ID ${id} not found`);
-    }
-
-    return drug;
   }
 
   async findByNDC(ndcCode: string): Promise<Drug> {
-    const drug = await this.drugRepository.findOne({
+    return findOneOrFail(this.drugRepository, 'Drug', {
       where: { ndcCode },
     });
-
-    if (!drug) {
-      throw new NotFoundException(`Drug with NDC ${ndcCode} not found`);
-    }
-
-    return drug;
   }
 
   async searchDrugs(searchTerm: string): Promise<Drug[]> {

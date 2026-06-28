@@ -1,7 +1,5 @@
 import {
   Injectable,
-  NotFoundException,
-  BadRequestException,
   Logger,
   ConflictException,
 } from '@nestjs/common';
@@ -10,6 +8,8 @@ import { Repository } from 'typeorm';
 import { Specimen, SpecimenStatus } from '../entities/specimen.entity';
 import { LabOrder } from '../entities/lab-order.entity';
 import { CreateSpecimenDto } from '../dto/create-specimen.dto';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
+import { validateStatusTransition } from '../../common/utils/status-transition.util';
 
 @Injectable()
 export class SpecimensService {
@@ -34,14 +34,9 @@ export class SpecimensService {
       throw new ConflictException(`Specimen with ID ${createDto.specimenId} already exists`);
     }
 
-    // Verify lab order exists
-    const labOrder = await this.labOrderRepository.findOne({
+    await findOneOrFail(this.labOrderRepository, 'Lab order', {
       where: { id: createDto.labOrderId },
     });
-
-    if (!labOrder) {
-      throw new NotFoundException(`Lab order with ID ${createDto.labOrderId} not found`);
-    }
 
     const specimen = this.specimenRepository.create({
       ...createDto,
@@ -67,29 +62,17 @@ export class SpecimensService {
   }
 
   async findOne(id: string): Promise<Specimen> {
-    const specimen = await this.specimenRepository.findOne({
+    return findOneOrFail(this.specimenRepository, 'Specimen', {
       where: { id },
       relations: ['labOrder', 'labOrder.items', 'labOrder.items.labTest'],
     });
-
-    if (!specimen) {
-      throw new NotFoundException(`Specimen with ID ${id} not found`);
-    }
-
-    return specimen;
   }
 
   async findBySpecimenId(specimenId: string): Promise<Specimen> {
-    const specimen = await this.specimenRepository.findOne({
+    return findOneOrFail(this.specimenRepository, 'Specimen', {
       where: { specimenId },
       relations: ['labOrder', 'labOrder.items', 'labOrder.items.labTest'],
     });
-
-    if (!specimen) {
-      throw new NotFoundException(`Specimen with specimen ID ${specimenId} not found`);
-    }
-
-    return specimen;
   }
 
   async findByOrder(orderId: string): Promise<Specimen[]> {
@@ -109,8 +92,7 @@ export class SpecimensService {
   ): Promise<Specimen> {
     const specimen = await this.findOne(id);
 
-    // Validate status transition
-    this.validateStatusTransition(specimen.status, status);
+    validateStatusTransition(specimen.status, status, this.specimenStatusTransitions);
 
     specimen.status = status;
     specimen.updatedBy = userId;
@@ -196,20 +178,12 @@ export class SpecimensService {
     return this.findOne(saved.id);
   }
 
-  private validateStatusTransition(currentStatus: SpecimenStatus, newStatus: SpecimenStatus): void {
-    const validTransitions: Record<SpecimenStatus, SpecimenStatus[]> = {
-      [SpecimenStatus.COLLECTED]: [SpecimenStatus.RECEIVED, SpecimenStatus.REJECTED],
-      [SpecimenStatus.RECEIVED]: [SpecimenStatus.PROCESSING, SpecimenStatus.REJECTED],
-      [SpecimenStatus.PROCESSING]: [SpecimenStatus.STORED, SpecimenStatus.DISCARDED],
-      [SpecimenStatus.STORED]: [SpecimenStatus.DISCARDED],
-      [SpecimenStatus.DISCARDED]: [],
-      [SpecimenStatus.REJECTED]: [],
-    };
-
-    if (!validTransitions[currentStatus].includes(newStatus)) {
-      throw new BadRequestException(
-        `Invalid status transition from ${currentStatus} to ${newStatus}`,
-      );
-    }
-  }
+  private readonly specimenStatusTransitions: Record<SpecimenStatus, SpecimenStatus[]> = {
+    [SpecimenStatus.COLLECTED]: [SpecimenStatus.RECEIVED, SpecimenStatus.REJECTED],
+    [SpecimenStatus.RECEIVED]: [SpecimenStatus.PROCESSING, SpecimenStatus.REJECTED],
+    [SpecimenStatus.PROCESSING]: [SpecimenStatus.STORED, SpecimenStatus.DISCARDED],
+    [SpecimenStatus.STORED]: [SpecimenStatus.DISCARDED],
+    [SpecimenStatus.DISCARDED]: [],
+    [SpecimenStatus.REJECTED]: [],
+  };
 }

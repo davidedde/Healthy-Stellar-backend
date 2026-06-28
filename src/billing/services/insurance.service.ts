@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
 import { Insurance } from '../entities/insurance.entity';
 import { InsuranceVerification } from '../entities/insurance-verification.entity';
 import {
@@ -33,16 +34,10 @@ export class InsuranceService {
   }
 
   async findById(id: string): Promise<Insurance> {
-    const insurance = await this.insuranceRepository.findOne({
+    return findOneOrFail(this.insuranceRepository, 'Insurance', {
       where: { id },
       relations: ['claims', 'verifications'],
     });
-
-    if (!insurance) {
-      throw new NotFoundException(`Insurance with ID ${id} not found`);
-    }
-
-    return insurance;
   }
 
   async findByPatientId(patientId: string): Promise<Insurance[]> {

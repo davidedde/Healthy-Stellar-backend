@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, Between } from 'typeorm';
 import { ClaimDenial } from '../entities/claim-denial.entity';
@@ -13,7 +13,8 @@ import {
   AppealSearchDto,
 } from '../dto/denial.dto';
 import { ClaimStatus, AppealStatus } from '../../common/enums';
-import { v4 as uuidv4 } from 'uuid';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
+import { generateTimestampRef } from '../../common/utils/reference-number.util';
 
 @Injectable()
 export class DenialService {
@@ -27,15 +28,11 @@ export class DenialService {
   ) {}
 
   async createDenial(createDto: CreateDenialDto): Promise<ClaimDenial> {
-    const claim = await this.claimRepository.findOne({
+    const claim = await findOneOrFail(this.claimRepository, 'Claim', {
       where: { id: createDto.claimId },
     });
 
-    if (!claim) {
-      throw new NotFoundException(`Claim with ID ${createDto.claimId} not found`);
-    }
-
-    const denialNumber = `DEN-${Date.now()}-${uuidv4().substring(0, 4).toUpperCase()}`;
+    const denialNumber = generateTimestampRef('DEN');
 
     const denial = this.denialRepository.create({
       denialNumber,
@@ -65,16 +62,10 @@ export class DenialService {
   }
 
   async findDenialById(id: string): Promise<ClaimDenial> {
-    const denial = await this.denialRepository.findOne({
+    return findOneOrFail(this.denialRepository, 'Denial', {
       where: { id },
       relations: ['claim', 'appeals'],
     });
-
-    if (!denial) {
-      throw new NotFoundException(`Denial with ID ${id} not found`);
-    }
-
-    return denial;
   }
 
   async searchDenials(searchDto: DenialSearchDto): Promise<{
@@ -161,7 +152,7 @@ export class DenialService {
       throw new BadRequestException('Maximum appeal level (3) reached');
     }
 
-    const appealNumber = `APL-${Date.now()}-${uuidv4().substring(0, 4).toUpperCase()}`;
+    const appealNumber = generateTimestampRef('APL');
 
     const appeal = this.appealRepository.create({
       appealNumber,
@@ -194,16 +185,10 @@ export class DenialService {
   }
 
   async findAppealById(id: string): Promise<ClaimAppeal> {
-    const appeal = await this.appealRepository.findOne({
+    return findOneOrFail(this.appealRepository, 'Appeal', {
       where: { id },
       relations: ['denial', 'denial.claim'],
     });
-
-    if (!appeal) {
-      throw new NotFoundException(`Appeal with ID ${id} not found`);
-    }
-
-    return appeal;
   }
 
   async searchAppeals(searchDto: AppealSearchDto): Promise<{
