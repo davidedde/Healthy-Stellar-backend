@@ -171,11 +171,20 @@ export class DatabaseOptimizationService implements OnModuleInit {
    */
   private async getExecutionPlan(query: string): Promise<string | null> {
     try {
-      // Only analyze SELECT queries to avoid side effects
-      if (!query.trim().toUpperCase().startsWith('SELECT')) {
+      const normalised = query.trim().toUpperCase();
+      // Only analyze SELECT queries to avoid side effects.
+      if (!normalised.startsWith('SELECT')) {
         return null;
       }
-      const plan = await this.dataSource.query(`EXPLAIN (ANALYZE false, FORMAT JSON) ${query}`);
+      // Reject queries containing multiple statements (semicolons outside of
+      // string literals) to prevent piggy-backed DDL/DML via EXPLAIN.
+      if (/;\s*\S/.test(query)) {
+        return null;
+      }
+
+      const plan = await this.dataSource.query(
+        `EXPLAIN (ANALYZE false, FORMAT JSON) ${query}`,
+      );
       return JSON.stringify(plan);
     } catch {
       return null;

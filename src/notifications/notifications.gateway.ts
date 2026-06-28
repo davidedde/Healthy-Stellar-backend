@@ -15,7 +15,10 @@ import { NotificationEvent } from './interfaces/notification-event.interface';
 import { NotificationQueueService } from './services/notification-queue.service';
 
 @WebSocketGateway({
-  cors: { origin: process.env.CORS_ORIGIN || '*', credentials: true },
+  cors: {
+    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [],
+    credentials: true,
+  },
   namespace: '/notifications',
 })
 @UseGuards(WsAuthGuard)
