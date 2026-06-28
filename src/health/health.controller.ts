@@ -34,7 +34,6 @@ interface DependencyCheck {
 
 @ApiTags('health')
 @Controller({ path: 'health', version: VERSION_NEUTRAL })
-@Public()
 export class HealthController {
   private readonly dependencies: DependencyCheck[] = [
     {
@@ -79,6 +78,7 @@ export class HealthController {
   ) {}
 
   @Get()
+  @Public()
   @HealthCheck()
   @ApiOperation({ summary: 'Overall system health (liveness probe)' })
   @ApiResponse({ status: 200, description: 'System is alive' })
@@ -87,6 +87,7 @@ export class HealthController {
   }
 
   @Get('ready')
+  @Public()
   @HealthCheck()
   @ApiOperation({ summary: 'Readiness probe with dependency degradation modes' })
   @ApiResponse({ status: 200, description: 'System is ready (critical dependencies healthy)' })
@@ -151,8 +152,12 @@ export class HealthController {
   }
 
   @Get('circuit-breakers')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get circuit breaker states' })
   @ApiResponse({ status: 200, description: 'Circuit breaker states retrieved' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden – admin only' })
   getCircuitBreakerStates() {
     return {
       states: this.circuitBreaker.getAllStates(),
@@ -161,8 +166,12 @@ export class HealthController {
   }
 
   @Get('data-residency')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Regional database and IPFS node connectivity' })
   @ApiResponse({ status: 200, description: 'Per-region health status' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden – admin only' })
   async checkDataResidency() {
     const regions = Object.values(DataResidencyRegion);
 
@@ -186,10 +195,14 @@ export class HealthController {
   }
 
   @Get('synthetic')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
   @HealthCheck()
   @ApiOperation({ summary: 'Synthetic probes for critical user journeys' })
   @ApiResponse({ status: 200, description: 'Business-level availability validated' })
   @ApiResponse({ status: 503, description: 'Critical user journey unavailable' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden – admin only' })
   async checkSyntheticProbes() {
     return this.health.check([() => this.syntheticProbe.isHealthy('synthetic-probe')]);
   }

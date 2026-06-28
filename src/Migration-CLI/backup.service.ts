@@ -1,12 +1,37 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 
-const execAsync = promisify(exec);
+function spawnAsync(
+  command: string,
+  args: string[],
+  opts: { env?: NodeJS.ProcessEnv; timeout?: number } = {},
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+    const child = spawn(command, args, {
+      shell: false,
+      env: opts.env ?? process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    if (opts.timeout) {
+      const timer = setTimeout(() => { child.kill(); reject(new Error(`${command} timed out`)); }, opts.timeout);
+      child.on('close', () => clearTimeout(timer));
+    }
+    child.stdout?.on('data', (d: Buffer) => stdoutChunks.push(d));
+    child.stderr?.on('data', (d: Buffer) => stderrChunks.push(d));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      const stdout = Buffer.concat(stdoutChunks).toString();
+      const stderr = Buffer.concat(stderrChunks).toString();
+      code === 0 ? resolve({ stdout, stderr }) : reject(new Error(`${command} exited with code ${code}: ${stderr}`));
+    });
+  });
+}
 
 export interface BackupResult {
   success: boolean;
@@ -57,10 +82,11 @@ export class BackupService {
         fs.mkdirSync(backupDir, { recursive: true });
       }
 
-      const { connectionString, pgDumpArgs } = this.buildPgDumpArgs(backupPath);
+      const { connectionString, pgDumpArgsList } = this.buildPgDumpArgs(backupPath);
 
-      const { stdout, stderr } = await execAsync(
-        `pg_dump ${pgDumpArgs}`,
+      const { stderr } = await spawnAsync(
+        'pg_dump',
+        pgDumpArgsList,
         {
           env: {
             ...process.env,
@@ -116,24 +142,23 @@ export class BackupService {
 
   private buildPgDumpArgs(outputPath: string): {
     connectionString: string;
-    pgDumpArgs: string;
+    pgDumpArgsList: string[];
   } {
     const connectionString =
       process.env.DATABASE_URL ??
       this.buildConnectionStringFromParts();
 
-    // Use custom format for efficient, restoreable backups
-    const pgDumpArgs = [
-      `"${connectionString}"`,
+    const pgDumpArgsList = [
+      connectionString,
       '--format=custom',
       '--compress=6',
-      `--file="${outputPath}"`,
+      `--file=${outputPath}`,
       '--no-owner',
       '--no-acl',
       '--verbose',
-    ].join(' ');
+    ];
 
-    return { connectionString, pgDumpArgs };
+    return { connectionString, pgDumpArgsList };
   }
 
   private buildConnectionStringFromParts(): string {

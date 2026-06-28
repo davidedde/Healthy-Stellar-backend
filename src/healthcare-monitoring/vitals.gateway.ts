@@ -18,7 +18,10 @@ import { SubmitVitalsDto } from './dto/submit-vitals.dto';
 import { PatientVital } from './entities/patient-vital.entity';
 
 @WebSocketGateway({
-  cors: { origin: process.env.CORS_ORIGIN || '*', credentials: true },
+  cors: {
+    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [],
+    credentials: true,
+  },
   namespace: '/vitals',
 })
 @UseGuards(WsAuthGuard)

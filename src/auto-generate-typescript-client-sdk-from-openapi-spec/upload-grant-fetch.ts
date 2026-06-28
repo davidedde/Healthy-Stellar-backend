@@ -19,10 +19,16 @@ import { MedChainClient, RecordMetadata, Permission } from '../src/index';
 
 const API_BASE = process.env.MEDCHAIN_API_URL ?? 'http://localhost:3000/v1';
 
-// ─── Credentials (load from env in production) ───────────────────────────────
-const UPLOADER = { username: 'nurse@hospital.org', password: 'nurse_pass' };
-const DOCTOR = { username: 'doctor@hospital.org', password: 'doctor_pass' };
-const PATIENT_ID = 'patient-uuid-1234';
+// ─── Credentials — always loaded from environment variables ──────────────────
+const UPLOADER = {
+  username: process.env.MEDCHAIN_UPLOADER_USERNAME ?? '',
+  password: process.env.MEDCHAIN_UPLOADER_PASSWORD ?? '',
+};
+const DOCTOR = {
+  username: process.env.MEDCHAIN_DOCTOR_USERNAME ?? '',
+  password: process.env.MEDCHAIN_DOCTOR_PASSWORD ?? '',
+};
+const PATIENT_ID = process.env.MEDCHAIN_PATIENT_ID ?? 'patient-uuid-1234';
 
 async function main() {
   // ── Step 1: Authenticate as the uploader ──────────────────────────────────

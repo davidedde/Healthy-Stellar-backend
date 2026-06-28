@@ -15,9 +15,12 @@ async function bootstrap() {
     }),
   );
 
-  // Enable CORS
+  // Enable CORS — never fall back to wildcard '*' which allows any origin
+  const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? (process.env.APP_URL ? [process.env.APP_URL] : [])
+    : ['http://localhost:3000', 'http://localhost:4200'];
   app.enableCors({
-    origin: process.env.NODE_ENV === 'production' ? process.env.APP_URL : '*',
+    origin: allowedOrigins,
     credentials: true,
   });
 

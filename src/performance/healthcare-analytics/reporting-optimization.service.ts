@@ -1,6 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { MedicalCacheService } from '../medical-cache/medical-cache.service';
+
+const VIEW_NAME_RE = /^[a-z][a-z0-9_]{0,62}$/;
 
 /**
  * Reporting Optimization Service
@@ -60,9 +62,11 @@ export class ReportingOptimizationService {
       const countResult = await this.dataSource.query(countQuery, params);
       const total = parseInt(countResult[0]?.total || '0');
 
-      // Get paginated data
-      const paginatedQuery = `${query} LIMIT ${pageSize} OFFSET ${offset}`;
-      const data = await this.dataSource.query(paginatedQuery, params);
+      // Get paginated data — pageSize and offset are derived from validated
+      // integers above, but we bind them as parameters for defence-in-depth.
+      const paramIndex = params.length;
+      const paginatedQuery = `${query} LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}`;
+      const data = await this.dataSource.query(paginatedQuery, [...params, pageSize, offset]);
 
       const result = {
         data,
@@ -105,6 +109,12 @@ export class ReportingOptimizationService {
     query: string,
     refreshInterval?: string,
   ): Promise<{ created: boolean; refreshed: boolean }> {
+    if (!VIEW_NAME_RE.test(viewName)) {
+      throw new BadRequestException(
+        'View name must match ^[a-z][a-z0-9_]{0,62}$ (lowercase alphanumeric and underscores only)',
+      );
+    }
+
     try {
       // Check if view exists
       const exists = await this.dataSource.query(
