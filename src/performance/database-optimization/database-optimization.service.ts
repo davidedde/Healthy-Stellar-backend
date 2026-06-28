@@ -60,7 +60,10 @@ export class DatabaseOptimizationService implements OnModuleInit {
         SET track_activities = on;
       `,
         )
-        .catch(() => {});
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`Failed to enable track_activities: ${message}`);
+        });
 
       this.logger.log('✅ Performance monitoring initialized');
     } catch (error) {
@@ -116,8 +119,9 @@ export class DatabaseOptimizationService implements OnModuleInit {
             `Data: ${stats[0].data_size}, Indexes: ${stats[0].index_size}`,
         );
       }
-    } catch (error) {
-      // Silently skip tables that can't be analyzed
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.debug(`Skipped analysis of table "${tableName}": ${message}`);
     }
   }
 
@@ -331,14 +335,7 @@ export class DatabaseOptimizationService implements OnModuleInit {
       };
     } catch (error) {
       this.logger.error(`Failed to get database health metrics: ${error.message}`);
-      return {
-        connectionCount: 0,
-        activeQueries: 0,
-        databaseSize: 'unknown',
-        cacheHitRatio: 0,
-        replicationLag: null,
-        tableBloat: [],
-      };
+      throw error;
     }
   }
 }

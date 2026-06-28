@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, Inject, Logger, Get, Param, UseGuards, Req, Query, Delete } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, Inject, Logger, Get, Param, UseGuards, Req, Query, Delete, HttpStatus, HttpException, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { IpfsService } from '../stellar/services/ipfs.service';
 import { QueueService } from '../queues/queue.service';
@@ -50,7 +50,10 @@ export class WebhooksController {
       return { received: true, cid, status: 'queued_for_processing' };
     } catch (error) {
       this.logger.error(`Failed to process IPFS webhook for CID ${cid}: ${error.message}`, error.stack);
-      return { received: false, error: error.message };
+      throw new HttpException(
+        { received: false, error: 'Failed to queue IPFS webhook for processing' },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -87,7 +90,10 @@ export class WebhooksController {
       return { received: true, txHash, status: 'queued_for_reconciliation' };
     } catch (error) {
       this.logger.error(`Failed to process Stellar webhook for transaction ${txHash}: ${error.message}`, error.stack);
-      return { received: false, error: error.message };
+      throw new HttpException(
+        { received: false, error: 'Failed to queue Stellar webhook for processing' },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -167,7 +173,7 @@ export class WebhooksController {
     });
 
     if (!delivery) {
-      return { error: 'Delivery not found', success: false };
+      throw new NotFoundException('Delivery not found');
     }
 
     delivery.status = WebhookDeliveryStatus.FAILED; // Mark as discarded

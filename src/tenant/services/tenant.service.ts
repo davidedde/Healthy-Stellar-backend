@@ -3,6 +3,7 @@ import {
   ConflictException,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -27,6 +28,8 @@ function assertSafeSlug(slug: string): void {
 
 @Injectable()
 export class TenantService {
+  private readonly logger = new Logger(TenantService.name);
+
   constructor(
     @InjectRepository(Tenant)
     private tenantRepository: Repository<Tenant>,
@@ -106,8 +109,9 @@ export class TenantService {
         // Best-effort rollback: drop the partially initialised schema.
         await this.dataSource
           .query(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
-          .catch(() => {
-            // Log but do not mask the original error.
+          .catch((rollbackErr: unknown) => {
+            const message = rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr);
+            this.logger.error(`Schema rollback failed for "${schemaName}": ${message}`);
           });
       }
       throw err;
@@ -115,7 +119,10 @@ export class TenantService {
       // Release the advisory lock regardless of outcome.
       await this.dataSource
         .query(`SELECT pg_advisory_unlock(hashtext($1))`, [schemaName])
-        .catch(() => {});
+        .catch((unlockErr: unknown) => {
+          const message = unlockErr instanceof Error ? unlockErr.message : String(unlockErr);
+          this.logger.warn(`Advisory lock release failed for "${schemaName}": ${message}`);
+        });
     }
   }
 

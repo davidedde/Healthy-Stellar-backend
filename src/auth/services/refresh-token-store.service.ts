@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 
@@ -6,6 +6,7 @@ const REFRESH_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
 @Injectable()
 export class RefreshTokenStoreService {
+  private readonly logger = new Logger(RefreshTokenStoreService.name);
   private redis: any;
 
   constructor(private configService: ConfigService) {}
@@ -20,7 +21,10 @@ export class RefreshTokenStoreService {
         db: this.configService.get<number>('REDIS_DB', 0),
         lazyConnect: true,
       });
-      await this.redis.connect().catch(() => {});
+      await this.redis.connect().catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(`Redis connection failed for refresh token store: ${message}`);
+      });
     }
     return this.redis;
   }
