@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, Between } from 'typeorm';
 import { Payment } from '../entities/payment.entity';
@@ -13,6 +13,9 @@ import {
 import { PaymentStatus, PaymentMethod } from '../../common/enums';
 import { v4 as uuidv4 } from 'uuid';
 import { InvoicePdfService } from './invoice-pdf.service';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
+import { generateTimestampRef } from '../../common/utils/reference-number.util';
+import { getDayRange } from '../../common/utils/date-range.util';
 
 @Injectable()
 export class PaymentService {
@@ -29,14 +32,10 @@ export class PaymentService {
   ) {}
 
   async create(createDto: CreatePaymentDto): Promise<Payment> {
-    const billing = await this.billingRepository.findOne({
+    const billing = await findOneOrFail(this.billingRepository, 'Billing', {
       where: { id: createDto.billingId },
       relations: ['lineItems'],
     });
-
-    if (!billing) {
-      throw new NotFoundException(`Billing with ID ${createDto.billingId} not found`);
-    }
 
     if (createDto.amount > billing.balance) {
       throw new BadRequestException(
@@ -44,7 +43,7 @@ export class PaymentService {
       );
     }
 
-    const paymentNumber = `PAY-${Date.now()}-${uuidv4().substring(0, 4).toUpperCase()}`;
+    const paymentNumber = generateTimestampRef('PAY');
 
     const payment = this.paymentRepository.create({
       paymentNumber,
@@ -154,29 +153,17 @@ export class PaymentService {
   }
 
   async findById(id: string): Promise<Payment> {
-    const payment = await this.paymentRepository.findOne({
+    return findOneOrFail(this.paymentRepository, 'Payment', {
       where: { id },
       relations: ['billing'],
     });
-
-    if (!payment) {
-      throw new NotFoundException(`Payment with ID ${id} not found`);
-    }
-
-    return payment;
   }
 
   async findByPaymentNumber(paymentNumber: string): Promise<Payment> {
-    const payment = await this.paymentRepository.findOne({
+    return findOneOrFail(this.paymentRepository, 'Payment', {
       where: { paymentNumber },
       relations: ['billing'],
     });
-
-    if (!payment) {
-      throw new NotFoundException(`Payment with number ${paymentNumber} not found`);
-    }
-
-    return payment;
   }
 
   async search(searchDto: PaymentSearchDto): Promise<{
@@ -259,7 +246,7 @@ export class PaymentService {
       );
     }
 
-    const refundPaymentNumber = `REF-${Date.now()}-${uuidv4().substring(0, 4).toUpperCase()}`;
+    const refundPaymentNumber = generateTimestampRef('REF');
 
     const refundPayment = this.paymentRepository.create({
       paymentNumber: refundPaymentNumber,
@@ -337,11 +324,7 @@ export class PaymentService {
     patientPayments: { count: number; amount: number };
     insurancePayments: { count: number; amount: number };
   }> {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const [startOfDay, endOfDay] = getDayRange(date);
 
     const payments = await this.paymentRepository.find({
       where: {

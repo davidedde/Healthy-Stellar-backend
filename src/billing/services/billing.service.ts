@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, DataSource } from 'typeorm';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
+import { daysAgo } from '../../common/utils/date-range.util';
 import { Billing } from '../entities/billing.entity';
 import { BillingLineItem } from '../entities/billing-line-item.entity';
 import {
@@ -88,29 +90,17 @@ export class BillingService {
   }
 
   async findById(id: string): Promise<Billing> {
-    const billing = await this.billingRepository.findOne({
+    return findOneOrFail(this.billingRepository, 'Billing', {
       where: { id },
       relations: ['lineItems', 'payments'],
     });
-
-    if (!billing) {
-      throw new NotFoundException(`Billing with ID ${id} not found`);
-    }
-
-    return billing;
   }
 
   async findByInvoiceNumber(invoiceNumber: string): Promise<Billing> {
-    const billing = await this.billingRepository.findOne({
+    return findOneOrFail(this.billingRepository, 'Billing', {
       where: { invoiceNumber },
       relations: ['lineItems', 'payments'],
     });
-
-    if (!billing) {
-      throw new NotFoundException(`Billing with invoice ${invoiceNumber} not found`);
-    }
-
-    return billing;
   }
 
   async findByPatientId(
@@ -285,11 +275,10 @@ export class BillingService {
     days90: { count: number; total: number };
     days120Plus: { count: number; total: number };
   }> {
-    const today = new Date();
-    const day30 = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const day60 = new Date(today.getTime() - 60 * 24 * 60 * 60 * 1000);
-    const day90 = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
-    const day120 = new Date(today.getTime() - 120 * 24 * 60 * 60 * 1000);
+    const day30 = daysAgo(30);
+    const day60 = daysAgo(60);
+    const day90 = daysAgo(90);
+    const day120 = daysAgo(120);
 
     const calculateBucket = async (
       startDate: Date | null,

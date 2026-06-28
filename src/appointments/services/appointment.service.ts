@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, Not, FindOptionsWhere } from 'typeorm';
+import { getDayRange } from '../../common/utils/date-range.util';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
@@ -132,11 +133,7 @@ export class AppointmentService {
     const whereCondition: FindOptionsWhere<Appointment> = { doctorId };
 
     if (date) {
-      const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
-
+      const [startOfDay, endOfDay] = getDayRange(date);
       whereCondition.appointmentDate = Between(startOfDay, endOfDay);
     }
 
@@ -198,11 +195,7 @@ export class AppointmentService {
       return [];
     }
 
-    // Get existing appointments for the day
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const [startOfDay, endOfDay] = getDayRange(date);
 
     const existingAppointments = await this.appointmentRepository.find({
       where: this.getScopedWhere({

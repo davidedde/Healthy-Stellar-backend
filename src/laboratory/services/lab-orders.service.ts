@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
 import { LabOrder, OrderStatus } from '../entities/lab-order.entity';
@@ -6,6 +6,9 @@ import { LabOrderItem, OrderItemStatus } from '../entities/lab-order-item.entity
 import { CreateLabOrderDto } from '../dto/create-lab-order.dto';
 import { UpdateLabOrderDto } from '../dto/update-lab-order.dto';
 import { SearchLabOrdersDto } from '../dto/search-lab-orders.dto';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
+import { generateDateSequenceRef } from '../../common/utils/reference-number.util';
+import { validateStatusTransition } from '../../common/utils/status-transition.util';
 
 @Injectable()
 export class LabOrdersService {
@@ -123,7 +126,7 @@ export class LabOrdersService {
   }
 
   async findOne(id: string): Promise<LabOrder> {
-    const labOrder = await this.labOrderRepository.findOne({
+    return findOneOrFail(this.labOrderRepository, 'Lab order', {
       where: { id },
       relations: [
         'items',
@@ -134,12 +137,6 @@ export class LabOrdersService {
         'specimens',
       ],
     });
-
-    if (!labOrder) {
-      throw new NotFoundException(`Lab order with ID ${id} not found`);
-    }
-
-    return labOrder;
   }
 
   async findByPatient(patientId: string): Promise<LabOrder[]> {
@@ -155,7 +152,7 @@ export class LabOrdersService {
 
     // Validate status transitions
     if (updateDto.status) {
-      this.validateStatusTransition(labOrder.status, updateDto.status);
+      validateStatusTransition(labOrder.status, updateDto.status, this.orderStatusTransitions);
     }
 
     Object.assign(labOrder, updateDto);
@@ -212,14 +209,10 @@ export class LabOrdersService {
     status: OrderItemStatus,
     userId: string,
   ): Promise<LabOrderItem> {
-    const item = await this.orderItemRepository.findOne({
+    const item = await findOneOrFail(this.orderItemRepository, 'Order item', {
       where: { id: itemId },
       relations: ['labOrder'],
     });
-
-    if (!item) {
-      throw new NotFoundException(`Order item with ID ${itemId} not found`);
-    }
 
     item.status = status;
     item.updatedBy = userId;
@@ -252,40 +245,16 @@ export class LabOrdersService {
     }
   }
 
-  private validateStatusTransition(currentStatus: OrderStatus, newStatus: OrderStatus): void {
-    const validTransitions: Record<OrderStatus, OrderStatus[]> = {
-      [OrderStatus.ORDERED]: [OrderStatus.COLLECTED, OrderStatus.CANCELLED],
-      [OrderStatus.COLLECTED]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
-      [OrderStatus.IN_PROGRESS]: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
-      [OrderStatus.COMPLETED]: [OrderStatus.VERIFIED],
-      [OrderStatus.VERIFIED]: [],
-      [OrderStatus.CANCELLED]: [],
-    };
-
-    if (!validTransitions[currentStatus].includes(newStatus)) {
-      throw new BadRequestException(
-        `Invalid status transition from ${currentStatus} to ${newStatus}`,
-      );
-    }
-  }
+  private readonly orderStatusTransitions: Record<OrderStatus, OrderStatus[]> = {
+    [OrderStatus.ORDERED]: [OrderStatus.COLLECTED, OrderStatus.CANCELLED],
+    [OrderStatus.COLLECTED]: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
+    [OrderStatus.IN_PROGRESS]: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
+    [OrderStatus.COMPLETED]: [OrderStatus.VERIFIED],
+    [OrderStatus.VERIFIED]: [],
+    [OrderStatus.CANCELLED]: [],
+  };
 
   private async generateOrderNumber(): Promise<string> {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-
-    // Get count of orders today
-    const startOfDay = new Date(date.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(date.setHours(23, 59, 59, 999));
-
-    const count = await this.labOrderRepository.count({
-      where: {
-        orderDate: Between(startOfDay, endOfDay),
-      },
-    });
-
-    const sequence = String(count + 1).padStart(4, '0');
-    return `LAB-${year}${month}${day}-${sequence}`;
+    return generateDateSequenceRef('LAB', this.labOrderRepository, 'orderDate');
   }
 }

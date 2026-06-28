@@ -1,10 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { PathologyCase, CaseStatus } from '../entities/pathology-case.entity';
 import { CreatePathologyCaseDto } from '../dto/create-pathology-case.dto';
 import { UpdatePathologyCaseDto } from '../dto/update-pathology-case.dto';
 import { SearchPathologyDto } from '../dto/search-pathology.dto';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
+import { generateDateSequenceRef } from '../../common/utils/reference-number.util';
+import { validateStatusTransition } from '../../common/utils/status-transition.util';
 
 @Injectable()
 export class PathologyCaseService {
@@ -128,7 +131,7 @@ export class PathologyCaseService {
   }
 
   async findOne(id: string): Promise<PathologyCase> {
-    const pathologyCase = await this.caseRepository.findOne({
+    return findOneOrFail(this.caseRepository, 'Pathology case', {
       where: { id },
       relations: [
         'specimens',
@@ -141,12 +144,6 @@ export class PathologyCaseService {
         'qualityControlLogs',
       ],
     });
-
-    if (!pathologyCase) {
-      throw new NotFoundException(`Pathology case with ID ${id} not found`);
-    }
-
-    return pathologyCase;
   }
 
   async findByPatient(patientId: string): Promise<PathologyCase[]> {
@@ -165,7 +162,7 @@ export class PathologyCaseService {
     const pathologyCase = await this.findOne(id);
 
     if (updateDto.status) {
-      this.validateStatusTransition(pathologyCase.status, updateDto.status);
+      validateStatusTransition(pathologyCase.status, updateDto.status, this.caseStatusTransitions);
     }
 
     Object.assign(pathologyCase, updateDto);
@@ -233,28 +230,20 @@ export class PathologyCaseService {
     this.logger.log(`Pathology case deleted: ${id}`);
   }
 
-  private validateStatusTransition(currentStatus: CaseStatus, newStatus: CaseStatus): void {
-    const validTransitions: Record<CaseStatus, CaseStatus[]> = {
-      [CaseStatus.RECEIVED]: [CaseStatus.ACCESSIONING],
-      [CaseStatus.ACCESSIONING]: [CaseStatus.GROSSING],
-      [CaseStatus.GROSSING]: [CaseStatus.PROCESSING],
-      [CaseStatus.PROCESSING]: [CaseStatus.EMBEDDING],
-      [CaseStatus.EMBEDDING]: [CaseStatus.CUTTING],
-      [CaseStatus.CUTTING]: [CaseStatus.STAINING],
-      [CaseStatus.STAINING]: [CaseStatus.MICROSCOPY],
-      [CaseStatus.MICROSCOPY]: [CaseStatus.DIAGNOSIS],
-      [CaseStatus.DIAGNOSIS]: [CaseStatus.PEER_REVIEW, CaseStatus.FINALIZED],
-      [CaseStatus.PEER_REVIEW]: [CaseStatus.FINALIZED],
-      [CaseStatus.FINALIZED]: [CaseStatus.AMENDED],
-      [CaseStatus.AMENDED]: [],
-    };
-
-    if (!validTransitions[currentStatus]?.includes(newStatus)) {
-      throw new BadRequestException(
-        `Invalid status transition from ${currentStatus} to ${newStatus}`,
-      );
-    }
-  }
+  private readonly caseStatusTransitions: Record<CaseStatus, CaseStatus[]> = {
+    [CaseStatus.RECEIVED]: [CaseStatus.ACCESSIONING],
+    [CaseStatus.ACCESSIONING]: [CaseStatus.GROSSING],
+    [CaseStatus.GROSSING]: [CaseStatus.PROCESSING],
+    [CaseStatus.PROCESSING]: [CaseStatus.EMBEDDING],
+    [CaseStatus.EMBEDDING]: [CaseStatus.CUTTING],
+    [CaseStatus.CUTTING]: [CaseStatus.STAINING],
+    [CaseStatus.STAINING]: [CaseStatus.MICROSCOPY],
+    [CaseStatus.MICROSCOPY]: [CaseStatus.DIAGNOSIS],
+    [CaseStatus.DIAGNOSIS]: [CaseStatus.PEER_REVIEW, CaseStatus.FINALIZED],
+    [CaseStatus.PEER_REVIEW]: [CaseStatus.FINALIZED],
+    [CaseStatus.FINALIZED]: [CaseStatus.AMENDED],
+    [CaseStatus.AMENDED]: [],
+  };
 
   private calculateTurnaroundTime(pathologyCase: PathologyCase): void {
     if (pathologyCase.receivedDate && pathologyCase.finalizedDate) {
@@ -264,21 +253,6 @@ export class PathologyCaseService {
   }
 
   private async generateCaseNumber(): Promise<string> {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-
-    const startOfDay = new Date(date.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(date.setHours(23, 59, 59, 999));
-
-    const count = await this.caseRepository.count({
-      where: {
-        caseDate: Between(startOfDay, endOfDay),
-      },
-    });
-
-    const sequence = String(count + 1).padStart(4, '0');
-    return `PATH-${year}${month}${day}-${sequence}`;
+    return generateDateSequenceRef('PATH', this.caseRepository, 'caseDate');
   }
 }

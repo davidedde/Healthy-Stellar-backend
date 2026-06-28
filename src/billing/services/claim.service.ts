@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindOptionsWhere, Between } from 'typeorm';
 import { InsuranceClaim } from '../entities/insurance-claim.entity';
@@ -12,7 +12,8 @@ import {
   ProcessERADto,
 } from '../dto/claim.dto';
 import { ClaimStatus, ClaimType } from '../../common/enums';
-import { v4 as uuidv4 } from 'uuid';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
+import { generateTimestampRef } from '../../common/utils/reference-number.util';
 
 @Injectable()
 export class ClaimService {
@@ -28,24 +29,16 @@ export class ClaimService {
   ) {}
 
   async create(createDto: CreateClaimDto): Promise<InsuranceClaim> {
-    const insurance = await this.insuranceRepository.findOne({
+    await findOneOrFail(this.insuranceRepository, 'Insurance', {
       where: { id: createDto.insuranceId },
     });
 
-    if (!insurance) {
-      throw new NotFoundException(`Insurance with ID ${createDto.insuranceId} not found`);
-    }
-
-    const billing = await this.billingRepository.findOne({
+    await findOneOrFail(this.billingRepository, 'Billing', {
       where: { id: createDto.billingId },
       relations: ['lineItems'],
     });
 
-    if (!billing) {
-      throw new NotFoundException(`Billing with ID ${createDto.billingId} not found`);
-    }
-
-    const claimNumber = `CLM-${Date.now()}-${uuidv4().substring(0, 4).toUpperCase()}`;
+    const claimNumber = generateTimestampRef('CLM');
 
     const billedAmount = createDto.procedureCodes.reduce(
       (sum, proc) => sum + proc.charge * proc.units,
@@ -86,29 +79,17 @@ export class ClaimService {
   }
 
   async findById(id: string): Promise<InsuranceClaim> {
-    const claim = await this.claimRepository.findOne({
+    return findOneOrFail(this.claimRepository, 'Claim', {
       where: { id },
       relations: ['insurance', 'denials'],
     });
-
-    if (!claim) {
-      throw new NotFoundException(`Claim with ID ${id} not found`);
-    }
-
-    return claim;
   }
 
   async findByClaimNumber(claimNumber: string): Promise<InsuranceClaim> {
-    const claim = await this.claimRepository.findOne({
+    return findOneOrFail(this.claimRepository, 'Claim', {
       where: { claimNumber },
       relations: ['insurance', 'denials'],
     });
-
-    if (!claim) {
-      throw new NotFoundException(`Claim with number ${claimNumber} not found`);
-    }
-
-    return claim;
   }
 
   async search(searchDto: ClaimSearchDto): Promise<{

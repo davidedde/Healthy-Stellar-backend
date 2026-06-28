@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LabOrder } from '../entities/lab-order.entity';
 import { Specimen } from '../entities/specimen.entity';
 import { LabResult } from '../entities/lab-result.entity';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
 
 @Injectable()
 export class LaboratoryService {
@@ -38,15 +39,12 @@ export class LaboratoryService {
   }
 
   async trackSpecimen(id: string): Promise<Specimen> {
-    const specimen = await this.specimenRepo.findOne({ where: { id } });
-    if (!specimen) throw new NotFoundException(`Specimen ${id} not found.`);
-    return specimen;
+    return findOneOrFail(this.specimenRepo, 'Specimen', { where: { id } });
   }
 
   async recordResult(dto: Partial<LabResult>): Promise<LabResult> {
     if (dto.orderId) {
-      const order = await this.orderRepo.findOne({ where: { id: dto.orderId } });
-      if (!order) throw new NotFoundException(`Order ${dto.orderId} not found.`);
+      await findOneOrFail(this.orderRepo, 'Order', { where: { id: dto.orderId } });
     }
     const result = this.resultRepo.create(dto as LabResult);
     return this.resultRepo.save(result);

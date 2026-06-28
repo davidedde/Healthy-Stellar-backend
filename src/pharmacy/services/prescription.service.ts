@@ -1,7 +1,6 @@
 import {
   Injectable,
   Logger,
-  NotFoundException,
   BadRequestException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -16,6 +15,7 @@ import { PharmacyInventoryService } from './pharmacy-inventory.service';
 import { ControlledSubstanceService } from './controlled-substance.service';
 import { DrugInteractionService } from './drug-interaction.service';
 import { Drug } from '../entities/drug.entity';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
 
 @Injectable()
 export class PrescriptionService {
@@ -85,16 +85,10 @@ export class PrescriptionService {
   }
 
   async findOne(id: string): Promise<Prescription> {
-    const prescription = await this.prescriptionRepository.findOne({
+    return findOneOrFail(this.prescriptionRepository, 'Prescription', {
       where: { id },
       relations: ['items', 'items.drug'],
     });
-
-    if (!prescription) {
-      throw new NotFoundException(`Prescription ${id} not found`);
-    }
-
-    return prescription;
   }
 
   async verifyPrescription(id: string, pharmacistId: string): Promise<Prescription> {

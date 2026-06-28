@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -12,6 +12,7 @@ import {
   CRITICAL_VALUE_DETECTED,
   CriticalValueDetectedEvent,
 } from '../events/critical-value-detected.event';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
 
 @Injectable()
 export class LabResultsService {
@@ -33,15 +34,10 @@ export class LabResultsService {
   async create(createDto: CreateLabResultDto, userId: string): Promise<LabResult> {
     this.logger.log(`Creating lab result for order item: ${createDto.orderItemId}`);
 
-    // Verify order item exists
-    const orderItem = await this.orderItemRepository.findOne({
+    const orderItem = await findOneOrFail(this.orderItemRepository, 'Order item', {
       where: { id: createDto.orderItemId },
       relations: ['labOrder', 'labTest', 'labTest.parameters'],
     });
-
-    if (!orderItem) {
-      throw new NotFoundException(`Order item with ID ${createDto.orderItemId} not found`);
-    }
 
     // Check if result already exists
     const existing = await this.labResultRepository.findOne({
@@ -67,13 +63,9 @@ export class LabResultsService {
     const resultValues: LabResultValue[] = [];
 
     for (const valueDto of createDto.values) {
-      const parameter = await this.parameterRepository.findOne({
+      const parameter = await findOneOrFail(this.parameterRepository, 'Parameter', {
         where: { id: valueDto.parameterId },
       });
-
-      if (!parameter) {
-        throw new NotFoundException(`Parameter with ID ${valueDto.parameterId} not found`);
-      }
 
       const resultValue = this.resultValueRepository.create({
         ...valueDto,
@@ -119,7 +111,7 @@ export class LabResultsService {
   }
 
   async findOne(id: string): Promise<LabResult> {
-    const labResult = await this.labResultRepository.findOne({
+    return findOneOrFail(this.labResultRepository, 'Lab result', {
       where: { id },
       relations: [
         'orderItem',
@@ -130,12 +122,6 @@ export class LabResultsService {
         'values.criticalAlerts',
       ],
     });
-
-    if (!labResult) {
-      throw new NotFoundException(`Lab result with ID ${id} not found`);
-    }
-
-    return labResult;
   }
 
   async findByOrderItem(orderItemId: string): Promise<LabResult | null> {

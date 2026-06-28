@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, FindOptionsWhere } from 'typeorm';
+import { findOneOrFail } from '../../common/utils/entity-lookup.util';
 import { MedicalCode } from '../entities/medical-code.entity';
 import {
   CreateMedicalCodeDto,
@@ -37,15 +38,9 @@ export class MedicalCodeService {
   }
 
   async findById(id: string): Promise<MedicalCode> {
-    const medicalCode = await this.medicalCodeRepository.findOne({
+    return findOneOrFail(this.medicalCodeRepository, 'Medical code', {
       where: { id },
     });
-
-    if (!medicalCode) {
-      throw new NotFoundException(`Medical code with ID ${id} not found`);
-    }
-
-    return medicalCode;
   }
 
   async findByCode(code: string, codeType: CodeType): Promise<MedicalCode | null> {
